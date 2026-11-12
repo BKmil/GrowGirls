@@ -2,7 +2,7 @@
 //  GrowGirlsApp.swift
 //  GrowGirls
 //
-//  Created by Asia on 11/11/2026.
+//  Created by Kamil on 11/11/2026.
 //
 
 import SwiftUI
@@ -11,7 +11,8 @@ import SwiftUI
 struct GrowGirlsApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootTabView()
+                .environmentObject(AppState.shared)
         }
     }
 }
