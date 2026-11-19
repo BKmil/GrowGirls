@@ -41,3 +41,49 @@ Authorization: Bearer {{token}}
 ### 7. Get profile with the OLD token (expect 401)
 GET {{host}}/profile
 Authorization: Bearer {{token}}
+
+
+
+### Muscle groups
+GET {{host}}/exercises/muscle-groups
+Authorization: Bearer {{token}}
+
+### List (first page)
+# @name list
+GET {{host}}/exercises
+Authorization: Bearer {{token}}
+
+###
+@exerciseId = {{list.response.body.items[0].id}}
+
+### List with search
+GET {{host}}/exercises?search=curl
+Authorization: Bearer {{token}}
+
+### List by muscle group, small pages
+GET {{host}}/exercises?muscleGroup=legs&limit=2&page=2
+Authorization: Bearer {{token}}
+
+### Invalid muscle group (expect 400)
+GET {{host}}/exercises?muscleGroup=banana
+Authorization: Bearer {{token}}
+
+### Detail
+GET {{host}}/exercises/{{exerciseId}}
+Authorization: Bearer {{token}}
+
+### Add favorite (expect 204)
+PUT {{host}}/exercises/{{exerciseId}}/favorite
+Authorization: Bearer {{token}}
+
+### Favorites only (should contain just that exercise)
+GET {{host}}/exercises?favoritesOnly=true
+Authorization: Bearer {{token}}
+
+### Remove favorite (expect 204)
+DELETE {{host}}/exercises/{{exerciseId}}/favorite
+Authorization: Bearer {{token}}
+
+### Unknown id (expect 404)
+GET {{host}}/exercises/doesnotexist
+Authorization: Bearer {{token}}

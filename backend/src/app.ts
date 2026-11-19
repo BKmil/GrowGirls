@@ -4,6 +4,7 @@ import jwt from "@fastify/jwt";
 import { prisma } from "./db";
 import { authRoutes } from "./routes/auth";
 import { profileRoutes } from "./routes/profile";
+import { exerciseRoutes } from "./routes/exercises";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -45,6 +46,7 @@ export function buildApp() {
   app.get("/health", async () => ({ status: "ok" }));
   app.register(authRoutes, { prefix: "/auth" });
   app.register(profileRoutes, { prefix: "/profile" });
+  app.register(exerciseRoutes, { prefix: "/exercises" });
 
   return app;
 }

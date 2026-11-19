@@ -8,13 +8,40 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
+  id           String     @id @default(cuid())
+  email        String     @unique
   passwordHash String
   name         String?
   heightCm     Float?
   weightKg     Float?
   birthDate    DateTime?
-  tokenVersion Int       @default(0)
-  createdAt    DateTime  @default(now())
+  tokenVersion Int        @default(0)
+  createdAt    DateTime   @default(now())
+  favorites    Favorite[]
+  exercises    Exercise[]
+}
+
+model Exercise {
+  id           String     @id @default(cuid())
+  name         String
+  muscleGroup  String
+  instructions String
+  mediaUrl     String?
+  mediaType    String?
+  createdById  String?
+  createdBy    User?      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  favorites    Favorite[]
+  createdAt    DateTime   @default(now())
+
+  @@index([muscleGroup])
+}
+
+model Favorite {
+  userId     String
+  exerciseId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([userId, exerciseId])
 }
