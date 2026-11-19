@@ -34,7 +34,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({ data: { email, passwordHash, name } });
-    const token = app.jwt.sign({ sub: user.id });
+    const token = app.jwt.sign({ sub: user.id, ver: user.tokenVersion });
 
     return reply.code(201).send({ token, user: publicUser(user) });
   });
@@ -55,8 +55,16 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ error: "Invalid email or password" });
     }
 
-    const token = app.jwt.sign({ sub: user.id });
+    const token = app.jwt.sign({ sub: user.id, ver: user.tokenVersion });
     return { token, user: publicUser(user) };
+  });
+
+  app.post("/logout", { onRequest: [app.authenticate] }, async (req, reply) => {
+    await prisma.user.update({
+      where: { id: req.user.sub },
+      data: { tokenVersion: { increment: 1 } },
+    });
+    return reply.code(204).send();
   });
 
   app.get("/me", { onRequest: [app.authenticate] }, async (req, reply) => {
