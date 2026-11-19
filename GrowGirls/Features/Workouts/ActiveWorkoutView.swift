@@ -1,3 +1,5 @@
+import SwiftUI
+
 struct ActiveWorkoutView: View {
     @Environment(\.dismiss) private var dismiss
     var body: some View {
