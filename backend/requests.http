@@ -1,0 +1,89 @@
+@host = http://localhost:3000
+
+### 1. Register (only needed once; a second time gives 409, which is fine)
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{ "email": "test@example.com", "password": "password123", "name": "Test" }
+
+### 2. Login (saves the token automatically)
+# @name login
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "test@example.com", "password": "password123" }
+
+###
+@token = {{login.response.body.token}}
+
+### 3. Get profile
+GET {{host}}/profile
+Authorization: Bearer {{token}}
+
+### 4. Update profile (expect 200)
+PATCH {{host}}/profile
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "heightCm": 170, "weightKg": 62.5, "birthDate": "2000-05-14" }
+
+### 5. Invalid update (expect 400)
+PATCH {{host}}/profile
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "heightCm": 5 }
+
+### 6. Logout (expect 204)
+POST {{host}}/auth/logout
+Authorization: Bearer {{token}}
+
+### 7. Get profile with the OLD token (expect 401)
+GET {{host}}/profile
+Authorization: Bearer {{token}}
+
+
+
+### Muscle groups
+GET {{host}}/exercises/muscle-groups
+Authorization: Bearer {{token}}
+
+### List (first page)
+# @name list
+GET {{host}}/exercises
+Authorization: Bearer {{token}}
+
+###
+@exerciseId = {{list.response.body.items[0].id}}
+
+### List with search
+GET {{host}}/exercises?search=curl
+Authorization: Bearer {{token}}
+
+### List by muscle group, small pages
+GET {{host}}/exercises?muscleGroup=legs&limit=2&page=2
+Authorization: Bearer {{token}}
+
+### Invalid muscle group (expect 400)
+GET {{host}}/exercises?muscleGroup=banana
+Authorization: Bearer {{token}}
+
+### Detail
+GET {{host}}/exercises/{{exerciseId}}
+Authorization: Bearer {{token}}
+
+### Add favorite (expect 204)
+PUT {{host}}/exercises/{{exerciseId}}/favorite
+Authorization: Bearer {{token}}
+
+### Favorites only (should contain just that exercise)
+GET {{host}}/exercises?favoritesOnly=true
+Authorization: Bearer {{token}}
+
+### Remove favorite (expect 204)
+DELETE {{host}}/exercises/{{exerciseId}}/favorite
+Authorization: Bearer {{token}}
+
+### Unknown id (expect 404)
+GET {{host}}/exercises/doesnotexist
+Authorization: Bearer {{token}}
