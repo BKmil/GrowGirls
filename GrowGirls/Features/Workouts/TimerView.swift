@@ -2,16 +2,13 @@ import Combine
 import SwiftUI
 
 /// The two modes available on the timer screen.
-// CaseIterable gives us TimerMode.allCases for creating the selector buttons.
-// Identifiable lets SwiftUI tell the two enum cases apart inside ForEach.
 enum TimerMode: CaseIterable, Identifiable {
     case stopwatch
     case restTimer
 
-    // Each enum case can use itself as its unique identifier.
+    // SwiftUI uses this value to identify each mode inside ForEach.
     var id: Self { self }
 
-    // Text displayed inside the mode selector.
     var title: String {
         switch self {
         case .stopwatch:
@@ -22,43 +19,45 @@ enum TimerMode: CaseIterable, Identifiable {
     }
 }
 
+/*
+ TimerView is organized in this reading order:
+
+ 1. State          - values remembered by the screen
+ 2. Screen layout  - the main view hierarchy
+ 3. Timer actions  - what buttons and timer ticks do
+ 4. Display values - text calculated from the state
+ 5. UI sections    - detailed appearance of each section
+ */
 struct TimerView: View {
-    // SwiftUI provides dismiss(). Calling it closes this full-screen view.
+    // MARK: - 1. State
+
+    // dismiss() closes the full-screen timer.
     @Environment(\.dismiss) private var dismiss
 
-    // These are the values that can change while the screen is open.
-    // @State tells SwiftUI to redraw the screen after a value changes.
-    @State private var mode: TimerMode = .stopwatch
-
-    // Both modes use the same number. Stopwatch increases it and Rest Timer decreases it.
-    @State private var seconds = 0
-
-    // Remember the selected preset so Reset knows which value to restore.
+    // @State values are remembered while this screen is open.
+    // Changing one of them causes SwiftUI to redraw the affected interface.
+    @State private var selectedMode: TimerMode = .stopwatch
+    @State private var timeInSeconds = 0
     @State private var selectedRestDuration = 90
-
-    // Controls whether tick() should change the number of seconds.
     @State private var isRunning = false
-
-    // Used to show "Rest complete" after a countdown reaches zero.
     @State private var hasFinished = false
 
-    // Preset values are expressed in seconds: 30s, 1min, 1.5min and 2min.
+    // All preset durations use seconds as their common unit.
     private let restPresets = [30, 60, 90, 120]
 
+    // MARK: - 2. Screen layout
+
     var body: some View {
-        // ZStack places the interface on top of the background color.
         ZStack {
             Color.appBackground.ignoresSafeArea()
 
-            // VStack places all screen sections vertically from top to bottom.
             VStack(spacing: 0) {
                 header
                 modeSelector
 
-                // Presets are useful only for a countdown, not for a stopwatch.
-                if mode == .restTimer {
+                // Countdown presets are hidden in Stopwatch mode.
+                if selectedMode == .restTimer {
                     restPresetButtons
-                        // Fade and slide the presets when changing modes.
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
@@ -67,22 +66,150 @@ struct TimerView: View {
                 Spacer()
             }
         }
-        // This publisher sends one signal every second while the screen exists.
-        // It keeps sending signals even when paused; tick() ignores them when
-        // isRunning is false.
+        // The publisher sends one signal every second.
+        // handleTimerTick() ignores the signal while the timer is paused.
         .onReceive(
             Timer.publish(every: 1, on: .main, in: .common).autoconnect()
         ) { _ in
-            tick()
+            handleTimerTick()
         }
     }
 
-    // MARK: - Screen sections
+    // MARK: - 3. Timer actions
 
+    /// Changes between Stopwatch and Rest Timer, then resets the clock.
+    private func selectMode(_ newMode: TimerMode) {
+        guard selectedMode != newMode else { return }
+
+        selectedMode = newMode
+        resetTimer()
+    }
+
+    /// Selects a Rest Timer preset and immediately displays its duration.
+    private func selectRestDuration(_ duration: Int) {
+        isRunning = false
+        hasFinished = false
+        selectedRestDuration = duration
+        timeInSeconds = duration
+    }
+
+    /// Starts a stopped timer or pauses a running timer.
+    private func startOrPauseTimer() {
+        // Starting a completed countdown should begin again from its preset.
+        if selectedMode == .restTimer && timeInSeconds == 0 {
+            timeInSeconds = selectedRestDuration
+        }
+
+        hasFinished = false
+        isRunning.toggle()
+    }
+
+    /// Stops the timer and restores the starting value for the selected mode.
+    private func resetTimer() {
+        isRunning = false
+        hasFinished = false
+
+        if selectedMode == .stopwatch {
+            timeInSeconds = 0
+        } else {
+            timeInSeconds = selectedRestDuration
+        }
+    }
+
+    /// Moves the active timer forward by one second.
+    private func handleTimerTick() {
+        // The publisher also sends signals while paused, so exit unless running.
+        guard isRunning else { return }
+
+        if selectedMode == .stopwatch {
+            timeInSeconds += 1
+            return
+        }
+
+        // Rest Timer counts down and must never become negative.
+        timeInSeconds = max(0, timeInSeconds - 1)
+
+        if timeInSeconds == 0 {
+            isRunning = false
+            hasFinished = true
+        }
+    }
+
+    // MARK: - 4. Display values
+
+    /// Converts an integer such as 90 into the text "01:30".
+    private var formattedTime: String {
+        let minutes = timeInSeconds / 60
+        let seconds = timeInSeconds % 60
+
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    /// Text shown directly below the digital clock.
+    private var statusText: String {
+        if hasFinished {
+            return "Rest complete"
+        }
+
+        if isRunning {
+            if selectedMode == .stopwatch {
+                return "Workout in progress"
+            } else {
+                return "Resting..."
+            }
+        }
+
+        if timerHasStarted {
+            return "Paused"
+        }
+
+        return "Ready when you are"
+    }
+
+    /// Text shown inside the large pink control button.
+    private var mainButtonTitle: String {
+        if isRunning {
+            return "Pause"
+        }
+
+        if timerHasStarted {
+            return "Resume"
+        }
+
+        return "Start"
+    }
+
+    /// Helps distinguish a new timer from one that has been paused.
+    private var timerHasStarted: Bool {
+        if selectedMode == .stopwatch {
+            return timeInSeconds > 0
+        } else {
+            return timeInSeconds < selectedRestDuration && timeInSeconds > 0
+        }
+    }
+
+    /// Converts preset seconds into short labels used by the buttons.
+    private func presetLabel(for duration: Int) -> String {
+        switch duration {
+        case 30:
+            return "30s"
+        case 60:
+            return "1 min"
+        case 90:
+            return "1.5 min"
+        case 120:
+            return "2 min"
+        default:
+            return "\(duration)s"
+        }
+    }
+
+    // MARK: - 5. UI sections
+
+    /// Back button and screen title.
     private var header: some View {
         HStack(spacing: 12) {
             Button {
-                // Close the full-screen timer and return to the tab screen.
                 dismiss()
             } label: {
                 Image(systemName: "chevron.left")
@@ -108,22 +235,19 @@ struct TimerView: View {
         .padding(.bottom, 24)
     }
 
+    /// Buttons for choosing Stopwatch or Rest Timer.
     private var modeSelector: some View {
         HStack(spacing: 6) {
-            // This loop creates one button for Stopwatch and one for Rest Timer.
             ForEach(TimerMode.allCases) { availableMode in
-                // The local value makes the styling conditions easier to read.
-                let isSelected = mode == availableMode
+                let isSelected = selectedMode == availableMode
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        // The helper stops and resets the timer before changing mode.
                         selectMode(availableMode)
                     }
                 } label: {
                     Text(availableMode.title)
                         .font(.system(size: 13, weight: .medium))
-                        // Selected buttons use white text on a pink background.
                         .foregroundStyle(isSelected ? Color.white : Color.secondary)
                         .padding(.horizontal, 16)
                         .frame(height: 36)
@@ -134,7 +258,6 @@ struct TimerView: View {
                                 .stroke(Color.brandPink.opacity(0.16), lineWidth: 1)
                         }
                 }
-                // VoiceOver announces which mode is currently selected.
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
@@ -143,15 +266,14 @@ struct TimerView: View {
         .clipShape(Capsule())
     }
 
+    /// Quick duration buttons displayed only in Rest Timer mode.
     private var restPresetButtons: some View {
         HStack(spacing: 8) {
-            // id: \.self means each unique number is also the button's identity.
             ForEach(restPresets, id: \.self) { duration in
                 let isSelected = selectedRestDuration == duration
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.15)) {
-                        // Set both the selected preset and the visible countdown value.
                         selectRestDuration(duration)
                     }
                 } label: {
@@ -173,31 +295,28 @@ struct TimerView: View {
         .padding(.top, 18)
     }
 
+    /// Large clock and short status message.
     private var timerReadout: some View {
         VStack(spacing: 10) {
-            // formattedTime changes an integer such as 90 into the text "01:30".
             Text(formattedTime)
                 .font(.system(size: 58, weight: .bold, design: .rounded))
-                // Every digit receives the same width, so the clock does not jump.
                 .monospacedDigit()
-                // Animate a number changing into the next number.
                 .contentTransition(.numericText())
                 .foregroundStyle(Color.primary)
                 .accessibilityLabel("Timer")
                 .accessibilityValue(formattedTime)
 
-            // Explain the current state: ready, running, paused or finished.
             Text(statusText)
                 .font(.system(size: 12, weight: .regular))
                 .foregroundStyle(Color.secondary)
                 .animation(.easeInOut(duration: 0.2), value: statusText)
         }
-        .padding(.top, mode == .restTimer ? 42 : 58)
+        .padding(.top, selectedMode == .restTimer ? 42 : 58)
     }
 
+    /// Reset button and the main Start/Pause/Resume button.
     private var controlButtons: some View {
         HStack(spacing: 18) {
-            // The smaller button stops the timer and restores its starting value.
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
                     resetTimer()
@@ -215,7 +334,6 @@ struct TimerView: View {
                     }
             }
 
-            // The larger button changes between Start, Pause and Resume.
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
                     startOrPauseTimer()
@@ -232,152 +350,8 @@ struct TimerView: View {
         }
         .padding(.top, 48)
     }
-
-    // MARK: - Timer information
-
-    // Computed properties do not store new data. They calculate an answer
-    // from the @State values every time SwiftUI reads them.
-    private var formattedTime: String {
-        // Integer division returns the number of complete minutes.
-        let minutes = seconds / 60
-
-        // The remainder operator (%) returns the seconds left after full minutes.
-        // Example: 90 / 60 = 1 minute, and 90 % 60 = 30 seconds.
-        let remainingSeconds = seconds % 60
-
-        // %02d displays at least two digits, adding a leading zero when needed.
-        return String(format: "%02d:%02d", minutes, remainingSeconds)
-    }
-
-    // Decide which explanatory message appears below the clock.
-    private var statusText: String {
-        if hasFinished {
-            return "Rest complete"
-        }
-
-        if isRunning {
-            if mode == .stopwatch {
-                return "Workout in progress"
-            } else {
-                return "Resting..."
-            }
-        }
-
-        if timerHasStarted {
-            return "Paused"
-        }
-
-        return "Ready when you are"
-    }
-
-    // Decide which label appears inside the large pink button.
-    private var mainButtonTitle: String {
-        if isRunning {
-            return "Pause"
-        }
-
-        if timerHasStarted {
-            return "Resume"
-        }
-
-        return "Start"
-    }
-
-    // This helps distinguish a fresh timer from a timer that was paused.
-    private var timerHasStarted: Bool {
-        if mode == .stopwatch {
-            return seconds > 0
-        } else {
-            return seconds < selectedRestDuration && seconds > 0
-        }
-    }
-
-    // MARK: - Timer actions
-
-    private func selectMode(_ newMode: TimerMode) {
-        // Do nothing when the user taps the already selected mode.
-        guard mode != newMode else { return }
-
-        mode = newMode
-
-        // Stopwatch starts at 0. Rest Timer starts at the selected preset.
-        resetTimer()
-    }
-
-    private func selectRestDuration(_ duration: Int) {
-        // Selecting a new preset stops any countdown already in progress.
-        isRunning = false
-        hasFinished = false
-
-        // Store the preset for future resets and show it immediately.
-        selectedRestDuration = duration
-        seconds = duration
-    }
-
-    private func startOrPauseTimer() {
-        // Restart a completed rest timer from its selected duration.
-        if mode == .restTimer && seconds == 0 {
-            seconds = selectedRestDuration
-        }
-
-        hasFinished = false
-
-        // toggle() changes false to true or true to false.
-        isRunning.toggle()
-    }
-
-    private func resetTimer() {
-        // Reset always stops the current timer first.
-        isRunning = false
-        hasFinished = false
-
-        // Each mode has a different starting value.
-        if mode == .stopwatch {
-            seconds = 0
-        } else {
-            seconds = selectedRestDuration
-        }
-    }
-
-    private func tick() {
-        // The one-second publisher still calls tick() while paused.
-        // guard exits early unless the timer is actively running.
-        guard isRunning else { return }
-
-        if mode == .stopwatch {
-            // Stopwatch counts upward.
-            seconds += 1
-            return
-        }
-
-        // Rest Timer counts downward. max prevents a negative result.
-        seconds = max(0, seconds - 1)
-
-        // Stop automatically and update the message when countdown reaches zero.
-        if seconds == 0 {
-            isRunning = false
-            hasFinished = true
-        }
-    }
-
-    // Convert raw seconds into short labels used by the preset buttons.
-    private func presetLabel(for duration: Int) -> String {
-        switch duration {
-        case 30:
-            return "30s"
-        case 60:
-            return "1 min"
-        case 90:
-            return "1.5 min"
-        case 120:
-            return "2 min"
-        default:
-            return "\(duration)s"
-        }
-    }
 }
 
 #Preview {
-    // Preview displays this screen in Xcode without running the whole application.
     TimerView()
 }
