@@ -1,18 +1,10 @@
 import SwiftUI
 
+/// Full-screen entry point opened by the center Start button in the tab bar.
 struct ActiveWorkoutView: View {
-    @Environment(\.dismiss) private var dismiss
     var body: some View {
-        ZStack {
-            Color.appBackground.ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text("Current workout").font(.title2.bold())
-                Button("Finish workout") {
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.brandPink)
-            }
-        }
+        // ActiveWorkoutView is kept as a wrapper because it may later become
+        // the full workout screen. For now, its only content is the timer.
+        TimerView()
     }
 }
