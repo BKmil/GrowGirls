@@ -7,4 +7,10 @@ final class AppState: ObservableObject {
     @Published var isLoggedIn: Bool = false
     
     private init() {}
+
+    // For now this updates the local app state. When the backend is connected,
+    // this method will also call the logout endpoint before clearing the session.
+    func logOut() {
+        isLoggedIn = false
+    }
 }
