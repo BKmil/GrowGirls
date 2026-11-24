@@ -27,6 +27,15 @@ enum RestTimerPreset: Int, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
+    // The file is divided into five numbered sections:
+    // 1. values needed by the screen
+    // 2. the main screen layout
+    // 3. actions started by the user
+    // 4. the large visual sections
+    // 5. small reusable UI elements
+
+    // MARK: - 1. Screen data and dependencies
+
     // dismiss() closes SettingsView and returns to ProfileView.
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppState
@@ -40,6 +49,10 @@ struct SettingsView: View {
 
     @State private var isShowingHealthKitError = false
 
+    // MARK: - 2. Main screen layout
+
+    // body is the table of contents for the whole screen.
+    // The detailed appearance of every section is defined further below.
     var body: some View {
         ZStack {
             Color.appBackground
@@ -64,7 +77,21 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Screen sections
+    // MARK: - 3. Screen actions
+
+    // Starts the Apple Health permission request without freezing the screen.
+    private func askForHealthKitPermission() {
+        Task {
+            let requestSucceeded = await healthKitManager.requestAuthorization()
+
+            if !requestSucceeded {
+                isAppleHealthEnabled = false
+                isShowingHealthKitError = true
+            }
+        }
+    }
+
+    // MARK: - 4. Screen sections
 
     private var header: some View {
         HStack(spacing: 12) {
@@ -185,7 +212,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Small reusable views
+    // MARK: - 5. Small reusable views
 
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
@@ -217,19 +244,9 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Apple Health action
-
-    private func askForHealthKitPermission() {
-        Task {
-            let requestSucceeded = await healthKitManager.requestAuthorization()
-
-            if !requestSucceeded {
-                isAppleHealthEnabled = false
-                isShowingHealthKitError = true
-            }
-        }
-    }
 }
+
+// MARK: - Xcode preview
 
 #Preview {
     NavigationStack {
