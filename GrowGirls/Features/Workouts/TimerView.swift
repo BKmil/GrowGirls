@@ -34,10 +34,16 @@ struct TimerView: View {
     // dismiss() closes the full-screen timer.
     @Environment(\.dismiss) private var dismiss
 
+    // This reads the default chosen on the Settings screen from UserDefaults.
+    @AppStorage("defaultRestDuration") private var defaultRestDuration = 90
+
     // @State values are remembered while this screen is open.
     // Changing one of them causes SwiftUI to redraw the affected interface.
     @State private var selectedMode: TimerMode = .stopwatch
     @State private var timeInSeconds = 0
+
+    // This is the temporary preset used during the current timer session.
+    // Changing it here does not overwrite the default saved in Settings.
     @State private var selectedRestDuration = 90
     @State private var isRunning = false
     @State private var hasFinished = false
@@ -66,6 +72,10 @@ struct TimerView: View {
                 Spacer()
             }
         }
+        // Every time a new timer screen opens, begin with the saved default.
+        .onAppear {
+            loadDefaultRestDuration()
+        }
         // The publisher sends one signal every second.
         // handleTimerTick() ignores the signal while the timer is paused.
         .onReceive(
@@ -76,6 +86,11 @@ struct TimerView: View {
     }
 
     // MARK: - 3. Timer actions
+
+    /// Loads the preference saved by Settings into this timer session.
+    private func loadDefaultRestDuration() {
+        selectedRestDuration = defaultRestDuration
+    }
 
     /// Changes between Stopwatch and Rest Timer, then resets the clock.
     private func selectMode(_ newMode: TimerMode) {
