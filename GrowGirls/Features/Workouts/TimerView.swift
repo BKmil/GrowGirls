@@ -1,5 +1,6 @@
 import Combine
 import SwiftUI
+import UIKit
 
 /// The two modes available on the timer screen.
 enum TimerMode: CaseIterable, Identifiable {
@@ -34,6 +35,9 @@ struct TimerView: View {
     // dismiss() closes the full-screen timer.
     @Environment(\.dismiss) private var dismiss
 
+    // scenePhase tells us when the app returns from the background.
+    @Environment(\.scenePhase) private var scenePhase
+
     // This reads the default chosen on the Settings screen from UserDefaults.
     @AppStorage("defaultRestDuration") private var defaultRestDuration = 90
 
@@ -47,6 +51,13 @@ struct TimerView: View {
     @State private var selectedRestDuration = 90
     @State private var isRunning = false
     @State private var hasFinished = false
+
+    // These dates let us calculate the correct time after the app was in the background.
+    @State private var stopwatchStartDate: Date?
+    @State private var restEndDate: Date?
+
+    // Notification details live in a separate file to keep this screen readable.
+    private let notificationManager = RestTimerNotificationManager.shared
 
     // All preset durations use seconds as their common unit.
     private let restPresets = [30, 60, 90, 120]
@@ -76,6 +87,13 @@ struct TimerView: View {
         .onAppear {
             loadDefaultRestDuration()
         }
+        // Timers may stop receiving ticks while iOS keeps the app in the background.
+        // When the app becomes active, calculate the correct time from the saved date.
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                refreshTimerAfterReturningToApp()
+            }
+        }
         // The publisher sends one signal every second.
         // handleTimerTick() ignores the signal while the timer is paused.
         .onReceive(
@@ -102,27 +120,66 @@ struct TimerView: View {
 
     /// Selects a Rest Timer preset and immediately displays its duration.
     private func selectRestDuration(_ duration: Int) {
+        notificationManager.cancelNotification()
         isRunning = false
         hasFinished = false
+        restEndDate = nil
         selectedRestDuration = duration
         timeInSeconds = duration
     }
 
     /// Starts a stopped timer or pauses a running timer.
     private func startOrPauseTimer() {
+        if isRunning {
+            pauseTimer()
+            return
+        }
+
         // Starting a completed countdown should begin again from its preset.
         if selectedMode == .restTimer && timeInSeconds == 0 {
             timeInSeconds = selectedRestDuration
         }
 
         hasFinished = false
-        isRunning.toggle()
+        isRunning = true
+
+        if selectedMode == .stopwatch {
+            startStopwatch()
+        } else {
+            startRestTimer()
+        }
+    }
+
+    /// Starts the stopwatch from its currently displayed time.
+    private func startStopwatch() {
+        stopwatchStartDate = Date().addingTimeInterval(-Double(timeInSeconds))
+    }
+
+    /// Starts the countdown and schedules its completion notification.
+    private func startRestTimer() {
+        let endDate = Date().addingTimeInterval(Double(timeInSeconds))
+
+        restEndDate = endDate
+        notificationManager.scheduleNotification(at: endDate)
+    }
+
+    /// Pauses either timer and remembers the time currently displayed.
+    private func pauseTimer() {
+        updateDisplayedTime()
+
+        isRunning = false
+        stopwatchStartDate = nil
+        restEndDate = nil
+        notificationManager.cancelNotification()
     }
 
     /// Stops the timer and restores the starting value for the selected mode.
     private func resetTimer() {
+        notificationManager.cancelNotification()
         isRunning = false
         hasFinished = false
+        stopwatchStartDate = nil
+        restEndDate = nil
 
         if selectedMode == .stopwatch {
             timeInSeconds = 0
@@ -136,18 +193,54 @@ struct TimerView: View {
         // The publisher also sends signals while paused, so exit unless running.
         guard isRunning else { return }
 
-        if selectedMode == .stopwatch {
-            timeInSeconds += 1
-            return
-        }
+        updateDisplayedTime()
+    }
 
-        // Rest Timer counts down and must never become negative.
-        timeInSeconds = max(0, timeInSeconds - 1)
+    /// Calculates the current display from the timer's start or end date.
+    private func updateDisplayedTime() {
+        if selectedMode == .stopwatch {
+            updateStopwatchTime()
+        } else {
+            updateRestTimerTime()
+        }
+    }
+
+    /// Calculates how much time has passed since the stopwatch started.
+    private func updateStopwatchTime() {
+        guard let stopwatchStartDate else { return }
+
+        timeInSeconds = Int(Date().timeIntervalSince(stopwatchStartDate))
+    }
+
+    /// Calculates how much time remains before the rest period ends.
+    private func updateRestTimerTime() {
+        guard let restEndDate else { return }
+
+        let remainingTime = restEndDate.timeIntervalSinceNow
+        timeInSeconds = max(0, Int(ceil(remainingTime)))
 
         if timeInSeconds == 0 {
-            isRunning = false
-            hasFinished = true
+            finishRestTimer()
         }
+    }
+
+    /// Finishes the countdown and gives feedback when the app is visible.
+    private func finishRestTimer() {
+        isRunning = false
+        hasFinished = true
+        restEndDate = nil
+        notificationManager.cancelNotification()
+
+        if scenePhase == .active {
+            let feedback = UINotificationFeedbackGenerator()
+            feedback.notificationOccurred(.success)
+        }
+    }
+
+    /// Corrects the display after iOS brings the app back from the background.
+    private func refreshTimerAfterReturningToApp() {
+        guard isRunning else { return }
+        updateDisplayedTime()
     }
 
     // MARK: - 4. Display values
