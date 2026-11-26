@@ -1,0 +1,17 @@
+@host = http://localhost:3000
+
+### Register
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{ "email": "test@example.com", "password": "password123", "name": "Test" }
+
+### Login
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "test@example.com", "password": "password123" }
+
+### Me (paste the token from the login response)
+GET {{host}}/auth/me
+Authorization: Bearer PASTE_TOKEN_HERE
