@@ -1,18 +1,20 @@
 import Fastify, { FastifyReply, FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
+import { prisma } from "./db";
 import { authRoutes } from "./routes/auth";
+import { profileRoutes } from "./routes/profile";
 
 declare module "fastify" {
   interface FastifyInstance {
-    authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
   }
 }
 
 declare module "@fastify/jwt" {
   interface FastifyJWT {
-    payload: { sub: string };
-    user: { sub: string };
+    payload: { sub: string; ver: number };
+    user: { sub: string; ver: number };
   }
 }
 
@@ -29,12 +31,20 @@ export function buildApp() {
     try {
       await req.jwtVerify();
     } catch {
-      reply.code(401).send({ error: "Unauthorized" });
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.sub },
+      select: { tokenVersion: true },
+    });
+    if (!user || user.tokenVersion !== req.user.ver) {
+      return reply.code(401).send({ error: "Unauthorized" });
     }
   });
 
   app.get("/health", async () => ({ status: "ok" }));
   app.register(authRoutes, { prefix: "/auth" });
+  app.register(profileRoutes, { prefix: "/profile" });
 
   return app;
 }
