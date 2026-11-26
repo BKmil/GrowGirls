@@ -16,3 +16,16 @@ struct Exercise: Identifiable, Codable, Hashable {
     let mediaType: String?
     var isFavorite: Bool?
 }
+
+struct ExercisePersonalBest: Codable, Hashable {
+    let weightKg: Double
+    let reps: Int
+    let achievedAt: Date?
+    
+    var formattedSummary: String {
+        let weightStr = weightKg.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", weightKg)
+            : String(format: "%.1f", weightKg)
+        return "\(weightStr) kg × \(reps) reps"
+    }
+}

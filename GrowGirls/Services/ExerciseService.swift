@@ -56,4 +56,15 @@ final class ExerciseService {
         
         let (_, _) = try await URLSession.shared.data(for: request)
     }
+
+    func fetchExerciseDetail(id: String) async throws -> Exercise {
+    guard let url = URL(string: "\(baseURL)/exercises/\(id)") else {
+        throw URLError(.badURL)
+    }
+    var request = URLRequest(url: url)
+    request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+    
+    let (data, _) = try await URLSession.shared.data(for: request)
+    return try JSONDecoder().decode(Exercise.self, from: data)
+}
 }
