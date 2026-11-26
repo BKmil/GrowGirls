@@ -8,6 +8,7 @@ enum ExerciseListMode {
 struct ExerciseListView: View {
     @State private var viewModel = ExerciseViewModel()
     @State private var selectedDetailExercise: Exercise?
+    @State private var isShowingCreateSheet = false
     @Environment(\.dismiss) private var dismiss
     
     var mode: ExerciseListMode = .browsing
@@ -59,7 +60,7 @@ struct ExerciseListView: View {
                 }
             }
             
-            // Confirm selection button in selection mode
+            // confirm selection button in selection mode
             if case .selection(let onConfirm) = mode, !viewModel.selectedExerciseIDs.isEmpty {
                 Button {
                     let chosen = viewModel.exercises.filter { viewModel.selectedExerciseIDs.contains($0.id) }
@@ -87,6 +88,11 @@ struct ExerciseListView: View {
                 }
             }
         }
+        .sheet(isPresented: $isShowingCreateSheet) {
+            CreateExerciseView { newExercise in
+                viewModel.exercises.insert(newExercise, at: 0)
+            }
+        }
         .task {
             await viewModel.loadInitialData()
         }
@@ -103,7 +109,7 @@ struct ExerciseListView: View {
         return false
     }
     
-    // MARK: - Subviews
+    // subviews
     
     private var headerView: some View {
         HStack {
@@ -127,7 +133,11 @@ struct ExerciseListView: View {
             
             if !isSelectionMode {
                 Button {
-                    onAddNewExercise?()
+                    if let onAddNewExercise {
+                        onAddNewExercise()
+                    } else {
+                        isShowingCreateSheet = true
+                    }
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .bold))
@@ -199,7 +209,7 @@ struct ExerciseListView: View {
     }
 }
 
-// MARK: - Single Exercise Card View
+// single exercise card view
 
 struct ExerciseCardView: View {
     let exercise: Exercise
@@ -210,7 +220,7 @@ struct ExerciseCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topTrailing) {
-                // Exercise image or placeholder
+                // exercise image or placeholder
                 Group {
                     if let urlString = exercise.mediaUrl, let url = URL(string: urlString) {
                         AsyncImage(url: url) { image in
@@ -228,7 +238,7 @@ struct ExerciseCardView: View {
                 .frame(maxWidth: .infinity)
                 .clipped()
                 
-                // Top right corner: checkmark in selection mode or favorite heart in browsing mode
+                // top right corner - checkmark in selection mode or favorite heart in browsing mode
                 if isSelectionMode {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "plus.circle.fill")
                         .font(.system(size: 24))
